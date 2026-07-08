@@ -6,6 +6,7 @@
   "scripts": {
     "eval": "promptfoo eval -c promptfooconfig.yaml",
     "selftest": "node harness/selftest.js",
+    "scores": "promptfoo export eval latest -o .lastrun.json && node harness/scores.js .lastrun.json",
     "view": "promptfoo view -y",
     "eval:view": "promptfoo eval -c promptfooconfig.yaml && promptfoo view -y"
   },
