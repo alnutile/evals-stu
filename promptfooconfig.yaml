@@ -1,0 +1,88 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: Bellwether — score and iterate the report-generation prompt
+
+# The prompt under test: currentprompt.md (loaded as the system message inside prompt.js).
+prompts:
+  - file://harness/prompt.js
+
+# Generation model. Swap the id or add more providers to compare prompt/model combos.
+providers:
+  - id: anthropic:messages:claude-sonnet-5
+    config:
+      max_tokens: 8000
+      temperature: 0.5
+
+# One test case per row of the research-stories CSV.
+tests: file://harness/tests.js
+
+defaultTest:
+  # A test passes when the weighted average of assertion scores clears this bar.
+  # Raise it as the prompt improves.
+  threshold: 0.75
+  options:
+    # Model that grades the llm-rubric assertions. Use a strong, ideally different, model here.
+    provider: anthropic:messages:claude-sonnet-5
+  assert:
+    # ---- Deterministic checks -------------------------------------------------
+    - type: javascript
+      value: file://harness/asserts/numberProvenance.js
+      weight: 3 # RUBRIC 1 — no fabricated numbers. Non-negotiable; weighted highest.
+    - type: javascript
+      value: file://harness/asserts/evidenceIntegrity.js
+      weight: 2 # RUBRIC 2 — evidence queries appear verbatim in the brief.
+    - type: javascript
+      value: file://harness/asserts/structure.js
+      weight: 1.5 # RUBRIC 5 — schema & field-count structure.
+
+    # ---- LLM-as-judge rubrics -------------------------------------------------
+    - type: llm-rubric
+      weight: 1.5 # RUBRIC 3 — honest caveats.
+      threshold: 0.7
+      value: |
+        You are grading a Bellwether issue for HONEST CAVEATING.
+        The brief's reporting window was: {{period}}
+        Prior-coverage context: {{context}}
+
+        The piece must surface the relevant limitations of its own data where they apply —
+        e.g. a partial/incomplete current month, adoption figures that are a point-in-time
+        snapshot rather than a trend, and an HN/Lobsters-skewed sample — and must NOT inflate
+        a quiet period into a bigger story than the data supports.
+        Score 1.0 when limitations are stated plainly and proportionately and certainty is not
+        overstated; score low when caveats are missing, buried, or the piece overreaches.
+
+    - type: llm-rubric
+      weight: 1 # RUBRIC 4 — voice & tone.
+      threshold: 0.7
+      value: |
+        You are grading the VOICE of a Bellwether issue. Judge only the prose fields
+        (title, dek, kicker, sections, methodology).
+        The target is a serious print broadsheet (like the Economist): precise, calm,
+        declarative; leads with the finding, then the evidence, then the caveat.
+        Score 1.0 for flawless broadsheet voice. Penalise hype, breathless adjectives,
+        exclamation marks, emoji, and clichés such as "game-changer", "revolutionary",
+        or "the future of". Score 0 if it reads like a promotional tech blog.
+
+    - type: llm-rubric
+      weight: 2 # RUBRIC 6 — argument quality (the bar).
+      threshold: 0.7
+      value: |
+        You are grading a Bellwether issue against its BAR: one clear, specific argument
+        about where the developer economy is moving — emergence and divergence (what is
+        about to be hot, where hype and adoption diverge, who is quietly winning).
+        The intended thesis was: {{thesis}}
+
+        Score 1.0 when the issue makes a single sharp argument, proves it with the brief's
+        data, and leaves the reader knowing something they could not get from the feed.
+        Penalise a muddled or multiple-competing-thesis piece, thin argument, or claims not
+        grounded in the brief.
+
+    - type: llm-rubric
+      weight: 1 # RUBRIC 7 — cover concept.
+      threshold: 0.7
+      value: |
+        You are grading only the `cover_concept` field of a Bellwether issue.
+        It must describe ONE strong visual metaphor for the issue's argument, giving SUBJECT
+        and COMPOSITION only. It must NOT specify palette, colour, lighting mood, art style,
+        or any rendered text/words/letters (the image generator locks those).
+        Score 1.0 for a single vivid, on-argument metaphor described as subject + composition.
+        Penalise multiple competing images, vagueness, or any mention of colour, style, or text.
